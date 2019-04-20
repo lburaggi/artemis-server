@@ -1,20 +1,17 @@
-package nz.co.fortytwo.signalk.artemis.transformer;
+package nz.co.fortytwo.signalk.artemis.handler;
 
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE;
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE_JSON_DELTA;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.UPDATES;
 
-import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.core.server.transformer.Transformer;
+import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import mjson.Json;
-import nz.co.fortytwo.signalk.artemis.intercept.BaseInterceptor;
 import nz.co.fortytwo.signalk.artemis.util.Config;
 import nz.co.fortytwo.signalk.artemis.util.ConfigConstants;
-import nz.co.fortytwo.signalk.artemis.util.MessageSupport;
 import nz.co.fortytwo.signalk.artemis.util.SignalKConstants;
 import nz.co.fortytwo.signalk.artemis.util.SignalkKvConvertor;
 import nz.co.fortytwo.signalk.artemis.util.Util;
@@ -50,10 +47,22 @@ import nz.co.fortytwo.signalk.artemis.util.Util;
  * 
  */
 
-public class DeltaMsgTransformer extends MessageSupport implements Transformer {
+public class DeltaMsgHandler extends BaseHandler {
 
-	private static Logger logger = LogManager.getLogger(DeltaMsgTransformer.class);
+	private static Logger logger = LogManager.getLogger(DeltaMsgHandler.class);
 
+	public DeltaMsgHandler() throws Exception {
+		
+		if (logger.isDebugEnabled())
+			logger.debug("Initialising for : {} ", uuid);
+		try {
+
+			// start listening
+			initSession(null, "internal.delta",RoutingType.ANYCAST);
+		} catch (Exception e) {
+			logger.error(e, e);
+		}
+	}
 	/**
 	 * Reads Delta format JSON and creates a kv message pairs. Does nothing if json
 	 * is not an update, and returns the original message
@@ -62,11 +71,11 @@ public class DeltaMsgTransformer extends MessageSupport implements Transformer {
 	 * @return
 	 */
 	@Override
-	public Message transform(Message message) {
+	public void consume(Message message) {
 
 		// is this s delta message
 		if (!AMQ_CONTENT_TYPE_JSON_DELTA.equals(message.getStringProperty(AMQ_CONTENT_TYPE)))
-			return message;
+			return;
 
 		Json node = Util.readBodyBuffer(message.toCore());
 
@@ -83,7 +92,7 @@ public class DeltaMsgTransformer extends MessageSupport implements Transformer {
 			}
 
 		}
-		return message;
+		return;
 	}
 
 	protected void processDelta(Message message, Json node) throws Exception {

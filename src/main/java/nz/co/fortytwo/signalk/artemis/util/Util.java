@@ -290,10 +290,9 @@ public class Util {
 		if (body == null) 
 			return null;
 		String context = Util.getContext(path);
-		// if the path starts with config, sources, resources, then we dont add the
-		// context
+		// if the path starts with config, sources, resources, then context = path
 
-		path = path.substring(context.length() + 1, path.length());
+		path = context.equals(path)?path=null:path.substring(context.length() + 1, path.length());
 
 		Json json = Json.read("{\"context\":\"" + context + "\",\""+type+"\": []}");
 
@@ -347,12 +346,10 @@ public class Util {
 	public static String sanitizePath(String newPath) {
 
 		newPath = newPath.replace('/', '.');
-		if (newPath.startsWith(dot)) {
-			newPath = newPath.substring(1);
-		}
-		if (newPath.endsWith(".") || newPath.endsWith("*") || newPath.endsWith("?")) {
-			newPath = newPath.substring(0, newPath.length() - 1);
-		}
+		newPath = StringUtils.removeStart(newPath, dot);
+		newPath = StringUtils.removeEnd(newPath, dot);
+		newPath = StringUtils.removeEnd(newPath, "*");
+		newPath = StringUtils.removeEnd(newPath, "?");
 
 		return newPath;
 	}
@@ -396,33 +393,35 @@ public class Util {
 
 		// TODO; robustness for "signalk/api/v1/", and "vessels.*" and
 		// "list/vessels"
+		//TODO: is spliterator based implemtation faster?
 
 		if (StringUtils.isBlank(path)) {
 			return "";
 		}
+		String [] paths = StringUtils.split(path, ".");
 
-		if (path.equals(resources) || path.startsWith(resources + dot) || path.equals(sources)
-				|| path.startsWith(sources + dot) || path.equals(CONFIG) || path.equals(vessels)) {
-			return path;
+		if (paths.length==1)return paths[0];
+		
+		if (paths[0].equals(sources)) {
+			return paths[0];
+		}
+		
+		if (paths[0].equals(resources)) {
+			return paths[0]+dot+paths[1];
 		}
 
-		if (path.startsWith(CONFIG + dot)) {
-
-			int pos = path.indexOf(".", CONFIG.length() + 1);
-			if (pos < 0) {
-				return path;
-			}
-			return path.substring(0, pos);
+		if (paths[0].equals(CONFIG)) {
+			return paths[0]+dot+paths[1];
 		}
-
-		if (path.startsWith(vessels + dot) || path.startsWith(LIST + dot + vessels + dot)) {
-			int p1 = path.indexOf(vessels) + vessels.length() + 1;
-
-			int pos = path.indexOf(".", p1);
-			if (pos < 0) {
-				return path;
+		
+		if (paths[0].equals(vessels)) {
+			return paths[0]+dot+paths[1];
+		}
+		if (paths[0].equals(LIST)&&paths[1].equals(vessels)) {
+			if(paths.length>2) {
+				return paths[0]+dot+paths[1]+dot+paths[2];
 			}
-			return path.substring(0, pos);
+			return paths[0]+dot+paths[1];
 		}
 		return path;
 	}

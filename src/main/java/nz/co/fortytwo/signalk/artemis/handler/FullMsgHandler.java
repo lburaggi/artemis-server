@@ -21,19 +21,17 @@
  * limitations under the License.
  *
  */
-package nz.co.fortytwo.signalk.artemis.transformer;
+package nz.co.fortytwo.signalk.artemis.handler;
 
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE;
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE_JSON_FULL;
 
 import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.core.server.transformer.Transformer;
+import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import mjson.Json;
-import nz.co.fortytwo.signalk.artemis.intercept.BaseInterceptor;
-import nz.co.fortytwo.signalk.artemis.util.MessageSupport;
 import nz.co.fortytwo.signalk.artemis.util.SignalkKvConvertor;
 import nz.co.fortytwo.signalk.artemis.util.Util;
 
@@ -44,19 +42,28 @@ import nz.co.fortytwo.signalk.artemis.util.Util;
  * @author robert
  * 
  */
-public class FullMsgTransformer extends MessageSupport implements Transformer {
+public class FullMsgHandler extends BaseHandler {
 
-	private static Logger logger = LogManager.getLogger(FullMsgTransformer.class);
+	private static Logger logger = LogManager.getLogger(FullMsgHandler.class);
 	
-	public FullMsgTransformer() {
+	public FullMsgHandler() {
 		super();
+		if (logger.isDebugEnabled())
+			logger.debug("Initialising for : {} ", uuid);
+		try {
+
+			// start listening
+			initSession((String)null, "internal.full",RoutingType.ANYCAST);
+		} catch (Exception e) {
+			logger.error(e, e);
+		}
 	}
 
 	
 	@Override
-	public Message transform(Message message) {
+	public void consume(Message message) {
 		
-		if (!AMQ_CONTENT_TYPE_JSON_FULL.equals(message.getStringProperty(AMQ_CONTENT_TYPE)))	return message;
+		if (!AMQ_CONTENT_TYPE_JSON_FULL.equals(message.getStringProperty(AMQ_CONTENT_TYPE)))	return;
 		Json node = Util.readBodyBuffer( message.toCore());
 		
 		// deal with full format
@@ -71,7 +78,7 @@ public class FullMsgTransformer extends MessageSupport implements Transformer {
 			}
 			
 		}
-		return message;
+		return;
 	}
 
 	

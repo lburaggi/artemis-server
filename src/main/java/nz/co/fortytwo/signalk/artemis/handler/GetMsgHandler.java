@@ -1,4 +1,4 @@
-package nz.co.fortytwo.signalk.artemis.transformer;
+package nz.co.fortytwo.signalk.artemis.handler;
 
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE;
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE_JSON_GET;
@@ -27,6 +27,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.core.server.transformer.Transformer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -74,11 +75,23 @@ import nz.co.fortytwo.signalk.artemis.util.Util;
  * 
  */
 
-public class GetMsgTransformer extends MessageSupport implements Transformer {
+public class GetMsgHandler extends BaseHandler{
 
-	private static Logger logger = LogManager.getLogger(GetMsgTransformer.class);
+	private static Logger logger = LogManager.getLogger(GetMsgHandler.class);
 	private static TDBService influx = new InfluxDbService();
 
+	public GetMsgHandler() throws Exception {
+		
+		if (logger.isDebugEnabled())
+			logger.debug("Initialising for : {} ", uuid);
+		try {
+
+			// start listening
+			initSession(null, "internal.get",RoutingType.ANYCAST);
+		} catch (Exception e) {
+			logger.error(e, e);
+		}
+	}
 	/**
 	 * Reads Delta GET message and returns the result in full format. Does nothing
 	 * if json is not a GET, and returns the original message
@@ -88,9 +101,9 @@ public class GetMsgTransformer extends MessageSupport implements Transformer {
 	 */
 
 	@Override
-	public Message transform(Message message) {
+	public void consume(Message message) {
 		if (!AMQ_CONTENT_TYPE_JSON_GET.equals(message.getStringProperty(AMQ_CONTENT_TYPE)))
-			return message;
+			return;
 
 		Json node = Util.readBodyBuffer(message.toCore());
 		String correlation = message.getStringProperty(Config.AMQ_CORR_ID);
@@ -113,7 +126,7 @@ public class GetMsgTransformer extends MessageSupport implements Transformer {
 					&& !aircraft.equals(root) && !sar.equals(root) && !aton.equals(root) && !ALL.equals(root)) {
 				try {
 					sendReply(destination, FORMAT_FULL, correlation, Json.object(), jwtToken);
-					return null;
+					return;
 				} catch (Exception e) {
 					logger.error(e, e);
 
@@ -230,7 +243,7 @@ public class GetMsgTransformer extends MessageSupport implements Transformer {
 			}
 
 		}
-		return message;
+		return;
 	}
 
 	

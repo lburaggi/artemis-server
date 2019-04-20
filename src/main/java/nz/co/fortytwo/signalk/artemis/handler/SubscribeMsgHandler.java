@@ -1,4 +1,4 @@
-package nz.co.fortytwo.signalk.artemis.transformer;
+package nz.co.fortytwo.signalk.artemis.handler;
 
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE;
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE_JSON_SUBSCRIBE;
@@ -17,6 +17,7 @@ import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.UNSUBSCRIBE;
 
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.core.server.transformer.Transformer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -61,10 +62,22 @@ import nz.co.fortytwo.signalk.artemis.util.Util;
  * 
  */
 
-public class SubscribeMsgTransformer extends MessageSupport implements Transformer {
+public class SubscribeMsgHandler extends BaseHandler {
 
-	private static Logger logger = LogManager.getLogger(SubscribeMsgTransformer.class);
+	private static Logger logger = LogManager.getLogger(SubscribeMsgHandler.class);
 
+	public SubscribeMsgHandler() throws Exception {
+		
+		if (logger.isDebugEnabled())
+			logger.debug("Initialising for : {} ", uuid);
+		try {
+
+			// start listening
+			initSession(null, "internal.subscribe",RoutingType.ANYCAST);
+		} catch (Exception e) {
+			logger.error(e, e);
+		}
+	}
 	/**
 	 * Reads Subscribe format JSON and creates a subscription. Does nothing if json
 	 * is not a subscribe, and returns the original message
@@ -74,9 +87,9 @@ public class SubscribeMsgTransformer extends MessageSupport implements Transform
 	 */
 
 	@Override
-	public Message transform(Message message) {
+	public void consume(Message message) {
 		if (!AMQ_CONTENT_TYPE_JSON_SUBSCRIBE.equals(message.getStringProperty(AMQ_CONTENT_TYPE)))
-			return message;
+			return;
 		
 		if (logger.isTraceEnabled())
 			logger.trace("Processing: {}", message);
@@ -122,7 +135,7 @@ public class SubscribeMsgTransformer extends MessageSupport implements Transform
 			}
 			node.clear(true);
 		}
-		return message;
+		return ;
 	}
 	
 	private void parseUnSubscribe(Json node, Json subscriptions, String ctx, ICoreMessage message) throws Exception {

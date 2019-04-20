@@ -1,4 +1,4 @@
-package nz.co.fortytwo.signalk.artemis.transformer;
+package nz.co.fortytwo.signalk.artemis.handler;
 
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE;
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE_JSON_DELTA;
@@ -7,9 +7,6 @@ import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.CONTEXT;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.PATH;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.UPDATES;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.dot;
-import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.env_depth_belowTransducer;
-import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.nav_courseOverGroundTrue;
-import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.nav_speedOverGround;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.self_str;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.source;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.timestamp;
@@ -33,36 +30,29 @@ import javax.script.ScriptException;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ICoreMessage;
 import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.api.core.client.ClientMessage;
-import org.apache.activemq.artemis.core.message.impl.CoreMessage;
-import org.apache.activemq.artemis.core.protocol.core.impl.wireformat.SessionSendMessage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 
 import mjson.Json;
+import nz.co.fortytwo.signalk.artemis.handler.NMEAMsgHandler;
 import nz.co.fortytwo.signalk.artemis.intercept.BaseMsgInterceptorTest;
-import nz.co.fortytwo.signalk.artemis.transformer.NMEAMsgTransformer;
 import nz.co.fortytwo.signalk.artemis.util.Util;
 
-public class NMEAMsgTransformerTest extends BaseMsgInterceptorTest {
-	private static Logger logger = LogManager.getLogger(NMEAMsgTransformerTest.class);
+public class NMEAMsgHandlerTest extends BaseMsgInterceptorTest {
+	private static Logger logger = LogManager.getLogger(NMEAMsgHandlerTest.class);
 	
-    private NMEAMsgTransformer transformer ;// 1
+    private NMEAMsgHandler handler ;// 1
 
-    public NMEAMsgTransformerTest() throws Exception {
-    	try {
-			transformer  = new NMEAMsgTransformer();
-		} catch (FileNotFoundException | NoSuchMethodException | ScriptException e) {
-			logger.error(e,e);
-		}
-	}
     
     @Before
-    public void before(){
-    	transformer = partialMockBuilder(NMEAMsgTransformer.class)
+    public void before() throws NoSuchMethodException, SecurityException{
+    	handler = partialMockBuilder(NMEAMsgHandler.class)
 	    	.addMockedMethod("sendKvMessage")
+	    	.addMockedMethod(BaseHandler.class.getDeclaredMethod("initSession",String.class, String.class,RoutingType.class))
     			.createMock(); 
     }
     
@@ -73,47 +63,28 @@ public class NMEAMsgTransformerTest extends BaseMsgInterceptorTest {
 		
 		replayAll();
 		
-		ICoreMessage msg =  transformer.transform(message).toCore();
-		assertNotNull(msg);
-		
-		assertEquals(AMQ_CONTENT_TYPE_JSON_DELTA,msg.getStringProperty(AMQ_CONTENT_TYPE));
-//		{"context":"vessels.self","updates":[{"values":[{"path":"navigation.position","value":{"latitude":51.9485185,"longitude":4.580064166666666}},{"path":"navigation.courseOverGroundTrue","value":0},{"path":"navigation.speedOverGround","value":0.151761149557269},{"path":"navigation.magneticVariation","value":0},{"path":"navigation.magneticVariationAgeOfService","value":1383317189},{"path":"navigation.datetime","value":"2013-11-01T14:46:29.000Z"}],"source":{"sentence":"RMC","talker":"GP","type":"NMEA0183"},"timestamp":"2013-11-01T14:46:29.000Z"}]}"
-		String content = Util.readBodyBufferToString(msg);;
-		logger.debug("NMEA converted message: {}",content);
-		Json after = Json.read(content);
-		
-		assertTrue(Util.isDelta(after));
-		assertEquals(json,after);
+		handler.consume(message);
+	
 		verifyAll();
     }
     
     @Test
 	public void shouldProcessRPM() throws ActiveMQException {	
 		ClientMessage message = getClientMessage("$IIRPM,E,1,2418.2,10.5,A*5F", AMQ_CONTENT_TYPE__0183, false); 
-		transformer.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
+		handler.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
 		expectLastCall().times(4);
 		replayAll();
-		Message msg =  transformer.transform(message);
-		assertNotNull(msg);
-//		
-//		HashMap<String,Object> map=new HashMap<>();
-//		map.put("propulsion.engine_1.revolutions",40.30333333333333d); 
-		
+		handler.consume(message);
 		verifyAll();
 	}
     
     @Test
 	public void shouldProcessDBT() throws ActiveMQException {	
 		ClientMessage message = getClientMessage("$IIDPT,4.1,0.0*45", AMQ_CONTENT_TYPE__0183, false); 
-		transformer.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
+		handler.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
 		expectLastCall().times(4);
 		replayAll();
-		
-		ICoreMessage msg =  transformer.transform(message).toCore();
-		assertNotNull(msg);
-		
-//		HashMap<String,Object> map=new HashMap<>();
-//		map.put(env_depth_belowTransducer,4.1d);
+		handler.consume(message);
 		verifyAll();
 		
 	}
@@ -122,20 +93,10 @@ public class NMEAMsgTransformerTest extends BaseMsgInterceptorTest {
 	public void shouldProcessRMB() throws ActiveMQException {	
 		ClientMessage message = getClientMessage("$ECRMB,A,0.000,L,001,002,4653.550,N,07115.984,W,2.505,334.205,0.000,V*04", AMQ_CONTENT_TYPE__0183, false); 
 		
-		transformer.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
+		handler.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
 		expectLastCall().times(8);
 		replayAll();
-		
-		ICoreMessage msg =  transformer.transform(message).toCore();
-		assertNotNull(msg);
-		
-//		HashMap<String,Object> map=new HashMap<>();
-//		//map.put("environment.depth.belowTransducer navigation.courseRhumbline.nextPoint.value.lattitude",46.8925d);
-//		map.put("navigation.courseRhumbline.nextPoint.bearingTrue",5.83297762795949d);
-//		map.put("navigation.courseRhumbline.nextPoint.velocityMadeGood",0d);
-//		map.put("navigation.courseRhumbline.nextPoint.distance",4639.260003915535d);
-//		map.put("navigation.courseRhumbline.crossTrackError",0d);
-
+		handler.consume(message);
 		verifyAll();
 		
 	}
@@ -143,26 +104,20 @@ public class NMEAMsgTransformerTest extends BaseMsgInterceptorTest {
 	@Test
 	public void shouldProcessRMC() throws ActiveMQException {
 		ClientMessage message = getClientMessage("$GPRMC,144629.20,A,5156.91111,N,00434.80385,E,0.295,,011113,,,A*78", AMQ_CONTENT_TYPE__0183, false); 
-		transformer.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
-		expectLastCall().times(9000000);
+		handler.sendKvMessage( anyObject(message.getClass()), anyString(), anyObject(Json.class));
+		expectLastCall().times(9);
 		replayAll();
-		long start = System.currentTimeMillis();
-		for (int i = 0; i < 100000; i++) {
+		//long start = System.currentTimeMillis();
+		//for (int i = 0; i < 100000; i++) {
 			message.putStringProperty(AMQ_CONTENT_TYPE, AMQ_CONTENT_TYPE__0183);
-			transformer.transform(message).toCore();
-			
-			if(i%1000==0) {
-				logger.info("Num: {}, {}ms",i,System.currentTimeMillis()-start);
-				start=System.currentTimeMillis();
-			}
-		}
-		ICoreMessage msg =  transformer.transform(message).toCore();
-		assertNotNull(msg);
+			handler.consume(message);
+		//	if(i%1000==0) {
+		//		logger.info("Num: {}, {}ms",i,System.currentTimeMillis()-start);
+		//		start=System.currentTimeMillis();
+		//	}
+		//}
 		
-//		HashMap<String,Object> map=new HashMap<>();
-//		map.put(nav_speedOverGround,0.151761149557269d);
-//		map.put(nav_courseOverGroundTrue,0d);
-	//	verifyAll();
+		verifyAll();
 		
 	}
 	private void checkConversion(ICoreMessage msg, HashMap<String, Object> map) {

@@ -1,4 +1,4 @@
-package nz.co.fortytwo.signalk.artemis.transformer;
+package nz.co.fortytwo.signalk.artemis.handler;
 
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE;
 import static nz.co.fortytwo.signalk.artemis.util.Config.AMQ_CONTENT_TYPE_JSON_AUTH;
@@ -9,6 +9,7 @@ import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.LOGOUT;
 import static nz.co.fortytwo.signalk.artemis.util.SignalKConstants.VALIDATE;
 
 import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.RoutingType;
 import org.apache.activemq.artemis.core.server.transformer.Transformer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -51,12 +52,23 @@ import nz.co.fortytwo.signalk.artemis.util.Util;
  * 
  */
 
-public class AuthTransformer extends MessageSupport implements Transformer {
+public class AuthHandler extends BaseHandler {
 
 	
-	private static Logger logger = LogManager.getLogger(AuthTransformer.class);
+	private static Logger logger = LogManager.getLogger(AuthHandler.class);
 	
-	
+	public AuthHandler() throws Exception {
+		
+		if (logger.isDebugEnabled())
+			logger.debug("Initialising for : {} ", uuid);
+		try {
+
+			// start listening
+			initSession(null, "internal.auth",RoutingType.ANYCAST);
+		} catch (Exception e) {
+			logger.error(e, e);
+		}
+	}
 	/**
 	 * Reads Delta GET message and returns the result in full format. Does nothing if json
 	 * is not a GET, and returns the original message
@@ -66,9 +78,9 @@ public class AuthTransformer extends MessageSupport implements Transformer {
 	 */
 
 	@Override
-	public Message transform(Message message) {
+	public void consume (Message message) {
 		if (!AMQ_CONTENT_TYPE_JSON_AUTH.equals(message.getStringProperty(AMQ_CONTENT_TYPE)))
-			return message;
+			return;
 		
 		Json node = Util.readBodyBuffer(message.toCore());
 		if (logger.isDebugEnabled())
@@ -115,7 +127,7 @@ public class AuthTransformer extends MessageSupport implements Transformer {
 
 		}
 		
-		return message;
+		return;
 	}
 
 	private Json authenticate( Json authRequest) throws Exception {
